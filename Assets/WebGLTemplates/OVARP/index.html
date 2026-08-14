@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <style>
+      html, body { height: 100%; margin: 0; padding: 0; background: #101014; overflow: hidden; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f2f2f4; }
+      #unity-canvas { display: block; width: 100%; height: 100%; background: #101014; }
+      #unity-gate {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 20px;
+        background: #101014; text-align: center; padding: 24px; box-sizing: border-box;
+      }
+      #unity-gate h1 { font-size: 24px; font-weight: 600; margin: 0; }
+      #unity-progress { width: min(320px, 70vw); height: 6px; border-radius: 3px; background: #2a2a32; overflow: hidden; }
+      #unity-progress-fill { width: 0; height: 100%; background: #0078ff; transition: width .15s ease-out; }
+      #unity-status { font-size: 14px; color: #9a9aa4; margin: 0; max-width: 40ch; line-height: 1.5; }
+      #unity-start {
+        display: none; font: inherit; font-size: 17px; color: #fff; background: #0078ff;
+        border: 0; border-radius: 6px; padding: 12px 32px; cursor: pointer;
+      }
+      #unity-start:hover { background: #2a8dff; }
+      #unity-warning { font-size: 13px; color: #ff7366; max-width: 46ch; line-height: 1.5; }
+    </style>
+#if SHOW_DIAGNOSTICS
+    <link rel="stylesheet" href="<<<TemplateData/diagnostics.css>>>">
+    <script src="<<<TemplateData/diagnostics.js>>>"></script>
+#endif
+  </head>
+  <body>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+
+    <!-- The gate keeps the canvas hidden until the user clicks. That click is what lets the
+         browser start the AudioContext; the microphone gesture is the in-app Connect button. -->
+    <div id="unity-gate">
+      <h1>{{{ PRODUCT_NAME }}}</h1>
+      <div id="unity-progress"><div id="unity-progress-fill"></div></div>
+      <p id="unity-status">Loading…</p>
+      <button id="unity-start" type="button">Start</button>
+      <p id="unity-warning"></p>
+    </div>
+
+#if SHOW_DIAGNOSTICS
+    <div id="unity-footer">
+      <img id="diagnostics-icon" src="TemplateData/webmemd-icon.png">
+    </div>
+#endif
+
+    <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var gate = document.querySelector("#unity-gate");
+      var progressFill = document.querySelector("#unity-progress-fill");
+      var status = document.querySelector("#unity-status");
+      var startButton = document.querySelector("#unity-start");
+      var warning = document.querySelector("#unity-warning");
+
+      // getUserMedia is only exposed in a secure context, so voice input is dead over plain
+      // HTTP on a non-loopback host. Say so up front instead of failing at the first tap.
+      if (!window.isSecureContext) {
+        warning.textContent = "This page is not running in a secure context. " +
+          "Serve it over HTTPS (or from localhost) or the microphone will be unavailable.";
+      }
+
+      createUnityInstance(canvas, {
+        arguments: [],
+        dataUrl: "Build/{{{ DATA_FILENAME }}}",
+        frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: "Build/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      }, function (progress) {
+        progressFill.style.width = (progress * 100) + "%";
+      }).then(function (unityInstance) {
+        status.textContent = "Ready.";
+        startButton.style.display = "inline-block";
+        startButton.addEventListener("click", function () {
+          gate.style.display = "none";
+          canvas.focus();
+        });
+#if SHOW_DIAGNOSTICS
+        document.getElementById("diagnostics-icon").onclick = function () {
+          unityDiagnostics.openDiagnosticsDiv(unityInstance.GetMetricsInfo);
+        };
+#endif
+      }).catch(function (message) {
+        status.textContent = "Failed to load: " + message;
+      });
+    </script>
+  </body>
+</html>

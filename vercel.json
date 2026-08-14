@@ -1,0 +1,30 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": null,
+  "installCommand": null,
+  "outputDirectory": "Build/Web",
+  "headers": [
+    {
+      "source": "/(.*\\.data\\.br)",
+      "headers": [
+        { "key": "Content-Encoding", "value": "br" },
+        { "key": "Content-Type", "value": "application/octet-stream" }
+      ]
+    },
+    {
+      "source": "/(.*\\.framework\\.js\\.br)",
+      "headers": [
+        { "key": "Content-Encoding", "value": "br" },
+        { "key": "Content-Type", "value": "application/javascript" }
+      ]
+    },
+    {
+      "source": "/(.*\\.wasm\\.br)",
+      "headers": [
+        { "key": "Content-Encoding", "value": "br" },
+        { "key": "Content-Type", "value": "application/wasm" }
+      ]
+    }
+  ]
+}

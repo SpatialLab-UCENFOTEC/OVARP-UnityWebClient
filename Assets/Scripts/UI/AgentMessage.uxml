@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="Message" style="background-color: rgba(72, 72, 72, 0);">
+        <ui:VisualElement name="AgentBubble" style="background-color: rgb(0, 99, 191); margin-left: 5px; margin-right: 42px; margin-top: 5px; margin-bottom: 5px; border-top-left-radius: 15px; border-bottom-left-radius: 15px; border-top-right-radius: 15px; border-bottom-right-radius: 15px; padding-left: 15px; padding-right: 15px; padding-top: 5px; padding-bottom: 5px; flex-direction: row;">
+            <ui:Label tabindex="-1" text="A&#10;B&#10;C" display-tooltip-when-elided="true" name="Text" style="color: rgb(255, 255, 255); height: auto; width: auto; margin-left: 0; margin-right: 0; margin-top: 0; margin-bottom: 0; white-space: normal; padding-left: 0; padding-right: 0; padding-top: 0; padding-bottom: 0; -unity-text-align: upper-left;" />
+        </ui:VisualElement>
+        <ui:VisualElement name="SenderBox" style="align-items: center; flex-direction: row; justify-content: flex-start; width: 599px;">
+            <ui:VisualElement name="AgentImage" style="height: 30px; width: 30px; color: rgb(255, 255, 255); background-color: rgba(255, 255, 255, 0); flex-wrap: nowrap; flex-direction: column; left: auto; bottom: auto; align-items: auto; top: auto; margin-left: 2px; margin-right: 2px; margin-top: 2px; margin-bottom: 2px; background-image: url(&apos;project://database/Assets/Sprites/portrait.png?fileID=2800000&amp;guid=2e809573a776dbe44ada0c16d4435b70&amp;type=3#portrait&apos;); flex-shrink: 0; -unity-background-image-tint-color: rgb(207, 207, 207);" />
+            <ui:Label tabindex="-1" text="Agent" display-tooltip-when-elided="true" name="AgentName" style="height: 34px; width: 201px; color: rgb(0, 0, 0); top: auto; left: auto; align-items: stretch; -unity-text-align: middle-left; margin-right: 11px; white-space: normal; flex-grow: 0;" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
