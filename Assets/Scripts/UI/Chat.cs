@@ -10,9 +10,22 @@ public class Chat : MonoBehaviour
 {
     private UIDocument uiChat;
     private Button displayButton;
-    private Button testButton;
+    private Button sendButton;
+    private TextField messageInput;
     private VisualElement chatArea;
     private VisualElement background;
+
+    /// <summary>Raised when the user submits typed text. Controller sends it to the server.</summary>
+    public event Action<string> OnMessageSubmitted;
+
+    /// <summary>
+    /// True while the text field holds focus. The Controller reads this before acting on
+    /// the spacebar, which would otherwise start recording on every space that gets typed.
+    /// </summary>
+    public bool IsTyping =>
+        messageInput != null
+        && uiChat != null
+        && uiChat.rootVisualElement.focusController?.focusedElement == messageInput;
     public VisualTreeAsset userMessageTemplate;
     public VisualTreeAsset agentMessageTemplate;
 
@@ -27,9 +40,18 @@ public class Chat : MonoBehaviour
         chatArea = uiChat.rootVisualElement.Q("ChatArea");
         background = uiChat.rootVisualElement.Q("Background");
         displayButton.RegisterCallback<ClickEvent>(OnClick);
-        testButton = uiChat.rootVisualElement.Q<Button>("TestButton");
-        testButton.RegisterCallback<ClickEvent>(MessageOnClick);
-        testButton.visible = false;
+
+        messageInput = uiChat.rootVisualElement.Q<TextField>("MessageInput");
+        sendButton = uiChat.rootVisualElement.Q<Button>("SendButton");
+        if (sendButton != null)
+            sendButton.RegisterCallback<ClickEvent>(OnSendClick);
+        if (messageInput != null)
+        {
+            // TrickleDown: the field consumes Return during bubbling, so catch it on the way in
+            messageInput.RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
+        }
+        // Stays off until the Controller reports a live connection
+        SetInputEnabled(false);
         //string longText =
         //    "Hey there! It's great that we're working together on this project. I've noticed that there's been a lot on your plate lately. Is there anything I can do to help you complete your portion of the project?";
         //string longWord =
@@ -168,12 +190,46 @@ public class Chat : MonoBehaviour
         chatArea.visible = !chatArea.visible;
     }
 
-    void MessageOnClick(ClickEvent evt)
+    /// <summary>
+    /// Enable or disable the typing controls. Left off until the socket is open, so a
+    /// message cannot be composed and echoed into the log with nowhere to go.
+    /// </summary>
+    public void SetInputEnabled(bool enabled)
     {
-        //sendUserMessage("New");
-        //StopCoroutine(dotLoading(tempUser));
-        //tempUser.Clear();
-        sendUserMessage("test");
+        if (messageInput != null)
+        {
+            messageInput.SetEnabled(enabled);
+            messageInput.tooltip = enabled ? "Type a message and press Enter" : "Waiting for the server";
+        }
+        if (sendButton != null)
+            sendButton.SetEnabled(enabled);
+    }
+
+    void OnSendClick(ClickEvent evt)
+    {
+        SubmitTypedMessage();
+    }
+
+    void OnInputKeyDown(KeyDownEvent evt)
+    {
+        if (evt.keyCode != KeyCode.Return && evt.keyCode != KeyCode.KeypadEnter) return;
+
+        SubmitTypedMessage();
+        evt.StopPropagation();
+    }
+
+    /// <summary>Echo the typed text into the log and hand it to whoever is listening.</summary>
+    private void SubmitTypedMessage()
+    {
+        if (messageInput == null) return;
+
+        string text = messageInput.value?.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        messageInput.value = string.Empty;
+        sendUserMessage(text);
+        OnMessageSubmitted?.Invoke(text);
+        messageInput.Focus();
     }
 
     void AgentNameChange(string name)

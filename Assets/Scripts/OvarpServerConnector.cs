@@ -32,6 +32,9 @@ public class OvarpServerConnector : MonoBehaviour
     public event Action<string>    OnEmotionCommand;    // neutral, happy, sad, angry, surprised
     public event Action<string>    OnLooksCommand;      // user, away, agent_beta
 
+    /// <summary>True while the socket is open and messages can actually be sent.</summary>
+    public bool IsConnected => _ws != null && _ws.State == WebSocketState.Open;
+
     // ── private state ──────────────────────────────────────────────────────────
     private WebSocket _ws;
     private readonly List<byte> _ttsBuffer = new();   // accumulates decoded tts_chunk bytes
@@ -252,6 +255,56 @@ public class OvarpServerConnector : MonoBehaviour
         {
             Debug.LogError($"[OvarpServerConnector] Send failed: {e.Message}");
         }
+    }
+
+    /// <summary>Send typed text to the OVARP server as an llm_request.</summary>
+    public async void SendText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        if (_ws == null || _ws.State != WebSocketState.Open)
+        {
+            Debug.LogWarning("[OvarpServerConnector] WebSocket not open — dropping message.");
+            return;
+        }
+
+        string json = $"{{\"sender\":\"{sender}\",\"target_device\":\"all\","
+                    + $"\"target_agent\":\"{targetAgent}\",\"command_type\":\"message\","
+                    + $"\"command\":\"llm_request\",\"subcommand\":{{\"text\":\"{EscapeJson(text)}\"}}}}";
+
+        try
+        {
+            await _ws.SendText(json);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[OvarpServerConnector] Send failed: {e.Message}");
+        }
+    }
+
+    // The outgoing payload is assembled as a string rather than serialized, so anything
+    // the participant types has to be escaped here or a quote breaks the whole message.
+    private static string EscapeJson(string value)
+    {
+        var sb = new StringBuilder(value.Length + 16);
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '"':  sb.Append("\\\""); break;
+                case '\\': sb.Append("\\\\"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                case '\b': sb.Append("\\b"); break;
+                case '\f': sb.Append("\\f"); break;
+                default:
+                    if (c < 0x20) sb.Append("\\u").Append(((int)c).ToString("x4"));
+                    else sb.Append(c);
+                    break;
+            }
+        }
+        return sb.ToString();
     }
 
     // ══════════════════════════════════════════════════════════════════════════

@@ -3,10 +3,13 @@
         <ui:VisualElement name="Background" style="width: 25%; height: 100%; align-items: flex-end; background-color: rgb(255, 255, 255); padding-left: 10px; margin-left: 0; padding-right: 0; padding-top: 0; padding-bottom: 0;">
             <ui:VisualElement style="flex-direction: row-reverse;">
                 <ui:Button text="Hide Chat" display-tooltip-when-elided="true" name="DisplayButton" style="width: 50px; height: 10px; font-size: 10px; max-height: 10px; min-height: 10px; align-items: auto;" />
-                <ui:Button text="Send" display-tooltip-when-elided="true" name="TestButton" style="width: 50px; height: 10px; font-size: 10px; max-height: 10px; min-height: 10px; align-items: auto;" />
             </ui:VisualElement>
             <ui:VisualElement name="ChatArea" style="opacity: 1; background-color: rgba(255, 255, 255, 0.08); height: 100%; width: 100%; left: auto; top: auto; right: 5px; bottom: auto; margin-top: 1px; margin-bottom: 13px; display: flex; visibility: visible;">
-                <ui:ScrollView horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="AlwaysVisible" name="Chat" style="height: 100%; width: auto;" />
+                <ui:ScrollView horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="AlwaysVisible" name="Chat" style="flex-grow: 1; width: auto;" />
+                <ui:VisualElement name="InputRow" style="flex-direction: row; flex-shrink: 0; width: 100%; padding-top: 4px; padding-bottom: 4px; padding-right: 5px; align-items: center;">
+                    <ui:TextField picking-mode="Position" name="MessageInput" multiline="false" style="flex-grow: 1; margin-right: 4px; min-height: 22px; font-size: 12px;" />
+                    <ui:Button text="Send" display-tooltip-when-elided="true" name="SendButton" style="width: 50px; min-height: 22px; font-size: 11px; flex-shrink: 0;" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

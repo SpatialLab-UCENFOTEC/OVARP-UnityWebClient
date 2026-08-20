@@ -83,6 +83,9 @@ public class Controller : MonoBehaviour
             serverConnector.OnEmotionCommand   += OnAgentEmotion;
             serverConnector.OnLooksCommand     += OnAgentLooks;
         }
+
+        if (chat != null)
+            chat.OnMessageSubmitted += OnUserTypedMessage;
     }
 
     private void OnDestroy()
@@ -99,6 +102,9 @@ public class Controller : MonoBehaviour
             serverConnector.OnEmotionCommand   -= OnAgentEmotion;
             serverConnector.OnLooksCommand     -= OnAgentLooks;
         }
+
+        if (chat != null)
+            chat.OnMessageSubmitted -= OnUserTypedMessage;
     }
 
     // ── Microphone permission ─────────────────────────────────────────────────
@@ -111,12 +117,36 @@ public class Controller : MonoBehaviour
 
     // ── OvarpServerConnector event handlers ───────────────────────────────────
 
-    private void OnServerConnected() => _inputEnabled = true;
+    private void OnServerConnected()
+    {
+        _inputEnabled = true;
+        chat?.SetInputEnabled(true);
+    }
 
     private void OnUserTranscript(string text)
     {
         chat.killTempUser();
         chat.sendUserMessage(text);
+    }
+
+    /// <summary>
+    /// Text typed into the chat box. Chat has already shown the user's bubble, so this
+    /// only puts the agent into its waiting state and forwards the message.
+    /// </summary>
+    private void OnUserTypedMessage(string text)
+    {
+        // The socket can drop after connecting; without this the message would be
+        // dropped with only a browser-console warning to show for it.
+        if (serverConnector == null || !serverConnector.IsConnected)
+        {
+            chat.sendAgentMessage("Not connected to the server — your message was not sent.");
+            chat.SetInputEnabled(false);
+            return;
+        }
+
+        chat.SendTempAgent();
+        anim.StartThinking();
+        serverConnector.SendText(text);
     }
 
     private void OnAgentTextReply(string text)
@@ -236,6 +266,9 @@ public class Controller : MonoBehaviour
     private void CheckInputTriggers()
     {
         if (!_inputEnabled) return;
+
+        // Typing a space in the chat box would otherwise start recording
+        if (chat != null && chat.IsTyping) return;
 
         // Desktop: spacebar toggle
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
