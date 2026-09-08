@@ -44,7 +44,7 @@ public class Controller : MonoBehaviour
     private const float MoveStep = 0.1f;
 
     private IMicrophoneCapture _microphone;
-    private bool isAudioReady = false;
+    private readonly Queue<AudioClip> _ttsClipQueue = new Queue<AudioClip>();
     private bool isListening = false;
     private bool _playbackStarted = false; // guards against exiting Speaking before Play() is called
 
@@ -144,6 +144,7 @@ public class Controller : MonoBehaviour
             return;
         }
 
+        ResetTtsPlayback();
         chat.SendTempAgent();
         anim.StartThinking();
         serverConnector.SendText(text);
@@ -158,9 +159,33 @@ public class Controller : MonoBehaviour
 
     private void OnAgentTtsReady(AudioClip clip)
     {
+        // The server now synthesizes and sends audio sentence-by-sentence, so several
+        // clips can arrive for a single reply. Queue them instead of overwriting
+        // audioSource.clip, which used to drop every sentence but the last.
+        _ttsClipQueue.Enqueue(clip);
+    }
+
+    private void PlayNextQueuedClip()
+    {
+        AudioClip clip = _ttsClipQueue.Dequeue();
         audioSource.clip = clip;
         lipSync.audioSource.clip = clip;
-        isAudioReady = true;
+        StartCoroutine(lipSync.AnalyzeAudioClip(clip));
+    }
+
+    /// <summary>
+    /// Barge-in: the user starting a new request makes whatever the agent was still
+    /// saying (queued or mid-playback) stale, so drop it and go back to Idle.
+    /// </summary>
+    private void ResetTtsPlayback()
+    {
+        _ttsClipQueue.Clear();
+        if (audioSource.isPlaying) audioSource.Stop();
+        utteranceQueue.Clear();
+        intentQueue.Clear();
+        CurrentState = AgentState.Idle;
+        CurrentIntent = null;
+        _playbackStarted = false;
     }
 
     private void OnAgentMovement(string direction)
@@ -230,11 +255,11 @@ public class Controller : MonoBehaviour
         }
         else if (CurrentState == AgentState.Waiting)
         {
-            if (isAudioReady)
+            if (_ttsClipQueue.Count > 0)
             {
                 CurrentState = AgentState.Speaking;
                 _playbackStarted = false;
-                StartCoroutine(lipSync.AnalyzeAudioClip(audioSource.clip));
+                PlayNextQueuedClip();
             }
         }
         else if (CurrentState == AgentState.Speaking)
@@ -242,10 +267,18 @@ public class Controller : MonoBehaviour
             if (audioSource.isPlaying) _playbackStarted = true;
             if (_playbackStarted && !audioSource.isPlaying)
             {
-                CurrentState = AgentState.Idle;
-                isAudioReady = false;
-                _playbackStarted = false;
-                CurrentIntent = null;
+                if (_ttsClipQueue.Count > 0)
+                {
+                    // More sentences already queued for this reply: keep speaking.
+                    _playbackStarted = false;
+                    PlayNextQueuedClip();
+                }
+                else
+                {
+                    CurrentState = AgentState.Idle;
+                    _playbackStarted = false;
+                    CurrentIntent = null;
+                }
             }
         }
 
@@ -337,6 +370,7 @@ public class Controller : MonoBehaviour
             return false;
         }
 
+        ResetTtsPlayback();
         serverConnector.SendAudio(SavWav.ToWavBytes(clip));
         return true;
     }
