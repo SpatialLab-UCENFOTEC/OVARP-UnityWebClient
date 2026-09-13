@@ -47,6 +47,7 @@ public class Controller : MonoBehaviour
     private readonly Queue<AudioClip> _ttsClipQueue = new Queue<AudioClip>();
     private bool isListening = false;
     private bool _playbackStarted = false; // guards against exiting Speaking before Play() is called
+    private Coroutine _lipSyncCoroutine; // in-flight AnalyzeAudioClip; must be cancelled on barge-in
 
     void Start()
     {
@@ -170,7 +171,12 @@ public class Controller : MonoBehaviour
         AudioClip clip = _ttsClipQueue.Dequeue();
         audioSource.clip = clip;
         lipSync.audioSource.clip = clip;
-        StartCoroutine(lipSync.AnalyzeAudioClip(clip));
+        // AnalyzeAudioClip waits (possibly several frames) for the clip to finish loading
+        // before it calls Play(). Cancel any previous instance first, or a still-pending
+        // one can resume after audioSource.clip has moved on and call Play() a second time
+        // on the new clip, restarting it mid-playback (heard as "double audio").
+        if (_lipSyncCoroutine != null) StopCoroutine(_lipSyncCoroutine);
+        _lipSyncCoroutine = StartCoroutine(lipSync.AnalyzeAudioClip(clip));
     }
 
     /// <summary>
@@ -181,6 +187,11 @@ public class Controller : MonoBehaviour
     {
         _ttsClipQueue.Clear();
         if (audioSource.isPlaying) audioSource.Stop();
+        if (_lipSyncCoroutine != null)
+        {
+            StopCoroutine(_lipSyncCoroutine);
+            _lipSyncCoroutine = null;
+        }
         utteranceQueue.Clear();
         intentQueue.Clear();
         CurrentState = AgentState.Idle;
