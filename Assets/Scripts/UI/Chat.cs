@@ -16,6 +16,10 @@ public class Chat : MonoBehaviour
     private VisualElement background;
     private Label placeholder;
     private Label connectionStatus;
+    private Label talkHint;
+
+    /// <summary>Width reserved for the Send button plus its margin.</summary>
+    private const int SEND_BUTTON_ROOM_PX = 60;
     private bool chatVisible = true;
 
     /// <summary>Raised when the user submits typed text. Controller sends it to the server.</summary>
@@ -216,19 +220,33 @@ public class Chat : MonoBehaviour
 
         if (messageInput != null && inputRow != null && placeholder == null)
         {
-            // Covers both ways in: nothing on screen said either was possible.
-            placeholder = new Label("Type a message, or hold Space / the circle to talk")
+            placeholder = new Label("Type a message...")
             {
                 pickingMode = PickingMode.Ignore
             };
             placeholder.style.position = Position.Absolute;
-            placeholder.style.left = 8;
+            placeholder.style.left = 10;
+            // Bounded on the right so it cannot run under the Send button, which
+            // is what an unbounded absolute label did at this panel width.
+            placeholder.style.right = SEND_BUTTON_ROOM_PX;
+            placeholder.style.overflow = Overflow.Hidden;
             placeholder.style.fontSize = 12;
             placeholder.style.color = new StyleColor(new Color(0.45f, 0.45f, 0.45f));
             inputRow.Add(placeholder);
 
             messageInput.RegisterValueChangedCallback(_ => RefreshPlaceholder());
             RefreshPlaceholder();
+        }
+
+        if (talkHint == null && chatArea != null)
+        {
+            talkHint = new Label("Hold Space, or the circle above the avatar, to talk");
+            talkHint.style.fontSize = 11;
+            talkHint.style.paddingLeft = 6;
+            talkHint.style.paddingBottom = 4;
+            talkHint.style.whiteSpace = WhiteSpace.Normal;
+            talkHint.style.color = new StyleColor(new Color(0.45f, 0.45f, 0.45f));
+            chatArea.Insert(0, talkHint);
         }
 
         if (connectionStatus == null && chatArea != null)
