@@ -4,10 +4,10 @@
             <ui:VisualElement style="flex-direction: row-reverse;">
                 <ui:Button text="Hide Chat" display-tooltip-when-elided="true" name="DisplayButton" style="width: 50px; height: 10px; font-size: 10px; max-height: 10px; min-height: 10px; align-items: auto;" />
             </ui:VisualElement>
-            <ui:VisualElement name="ChatArea" style="opacity: 1; background-color: rgba(255, 255, 255, 0.08); height: 100%; width: 100%; left: auto; top: auto; right: 5px; bottom: auto; margin-top: 1px; margin-bottom: 13px; display: flex; visibility: visible;">
+            <ui:VisualElement name="ChatArea" style="opacity: 1; background-color: rgba(255, 255, 255, 0.08); height: 100%; width: auto; flex-grow: 1; align-self: stretch; left: auto; top: auto; right: auto; bottom: auto; margin-top: 1px; margin-bottom: 13px; margin-right: 5px; display: flex; visibility: visible;">
                 <ui:ScrollView horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="AlwaysVisible" name="Chat" style="flex-grow: 1; width: auto;" />
-                <ui:VisualElement name="InputRow" style="flex-direction: row; flex-shrink: 0; width: 100%; padding-top: 4px; padding-bottom: 4px; padding-right: 5px; align-items: center;">
-                    <ui:TextField picking-mode="Position" name="MessageInput" multiline="false" style="flex-grow: 1; margin-right: 4px; min-height: 22px; font-size: 12px;" />
+                <ui:VisualElement name="InputRow" style="flex-direction: row; flex-shrink: 0; width: auto; padding-top: 4px; padding-bottom: 4px; padding-left: 5px; padding-right: 5px; align-items: center; overflow: hidden;">
+                    <ui:TextField picking-mode="Position" name="MessageInput" multiline="false" style="flex-grow: 1; flex-shrink: 1; min-width: 0; margin-right: 4px; min-height: 22px; font-size: 12px;" />
                     <ui:Button text="Send" display-tooltip-when-elided="true" name="SendButton" style="width: 50px; min-height: 22px; font-size: 11px; flex-shrink: 0;" />
                 </ui:VisualElement>
             </ui:VisualElement>

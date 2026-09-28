@@ -14,6 +14,9 @@ public class Chat : MonoBehaviour
     private TextField messageInput;
     private VisualElement chatArea;
     private VisualElement background;
+    private Label placeholder;
+    private Label connectionStatus;
+    private bool chatVisible = true;
 
     /// <summary>Raised when the user submits typed text. Controller sends it to the server.</summary>
     public event Action<string> OnMessageSubmitted;
@@ -50,6 +53,8 @@ public class Chat : MonoBehaviour
             // TrickleDown: the field consumes Return during bubbling, so catch it on the way in
             messageInput.RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
         }
+        BuildAffordances();
+
         // Stays off until the Controller reports a live connection
         SetInputEnabled(false);
         //string longText =
@@ -187,7 +192,87 @@ public class Chat : MonoBehaviour
 
     void OnClick(ClickEvent evt)
     {
-        chatArea.visible = !chatArea.visible;
+        // `visible` left the panel's white background occupying the screen and the
+        // button still reading "Hide Chat", so the control looked like it had done
+        // nothing. Collapsing the container removes it from layout as well.
+        chatVisible = !chatVisible;
+        chatArea.style.display = chatVisible ? DisplayStyle.Flex : DisplayStyle.None;
+        if (background != null)
+            background.style.backgroundColor = chatVisible
+                ? new StyleColor(Color.white)
+                : new StyleColor(Color.clear);
+        displayButton.text = chatVisible ? "Hide Chat" : "Show Chat";
+    }
+
+    /// <summary>
+    /// Adds the pieces the participant needs in order to know what to do: how to
+    /// talk, what the input is for, whether the server is there, and where the
+    /// conversation begins. None of it existed, which is the first thing every
+    /// round of testing reported.
+    /// </summary>
+    private void BuildAffordances()
+    {
+        var inputRow = uiChat.rootVisualElement.Q("InputRow");
+
+        if (messageInput != null && inputRow != null && placeholder == null)
+        {
+            // Covers both ways in: nothing on screen said either was possible.
+            placeholder = new Label("Type a message, or hold Space / the circle to talk")
+            {
+                pickingMode = PickingMode.Ignore
+            };
+            placeholder.style.position = Position.Absolute;
+            placeholder.style.left = 8;
+            placeholder.style.fontSize = 12;
+            placeholder.style.color = new StyleColor(new Color(0.45f, 0.45f, 0.45f));
+            inputRow.Add(placeholder);
+
+            messageInput.RegisterValueChangedCallback(_ => RefreshPlaceholder());
+            RefreshPlaceholder();
+        }
+
+        if (connectionStatus == null && chatArea != null)
+        {
+            connectionStatus = new Label("Connecting to the server...");
+            connectionStatus.style.fontSize = 11;
+            connectionStatus.style.paddingLeft = 6;
+            connectionStatus.style.paddingTop = 2;
+            connectionStatus.style.paddingBottom = 2;
+            connectionStatus.style.color = new StyleColor(new Color(0.55f, 0.4f, 0.1f));
+            chatArea.Insert(0, connectionStatus);
+        }
+
+        var scroll = uiChat.rootVisualElement.Q<ScrollView>("Chat");
+        if (scroll != null && scroll.childCount == 0)
+        {
+            var start = new Label("Start of the conversation");
+            start.style.fontSize = 10;
+            start.style.unityTextAlign = TextAnchor.MiddleCenter;
+            start.style.color = new StyleColor(new Color(0.6f, 0.6f, 0.6f));
+            start.style.paddingTop = 6;
+            start.style.paddingBottom = 6;
+            scroll.Add(start);
+        }
+    }
+
+    private void RefreshPlaceholder()
+    {
+        if (placeholder == null || messageInput == null) return;
+        bool empty = string.IsNullOrEmpty(messageInput.value);
+        placeholder.style.display = empty ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    /// <summary>Show whether the server is reachable, rather than leaving the
+    /// participant to guess from an input box that does nothing.</summary>
+    public void SetConnectionStatus(bool connected)
+    {
+        if (connectionStatus == null) return;
+        connectionStatus.text = connected
+            ? "Connected to the server"
+            : "Not connected — the agent cannot answer yet";
+        connectionStatus.style.color = connected
+            ? new StyleColor(new Color(0.1f, 0.5f, 0.2f))
+            : new StyleColor(new Color(0.7f, 0.2f, 0.2f));
     }
 
     /// <summary>
@@ -203,6 +288,8 @@ public class Chat : MonoBehaviour
         }
         if (sendButton != null)
             sendButton.SetEnabled(enabled);
+        SetConnectionStatus(enabled);
+        RefreshPlaceholder();
     }
 
     void OnSendClick(ClickEvent evt)

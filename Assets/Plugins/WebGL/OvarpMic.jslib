@@ -31,6 +31,10 @@ var OvarpMicLib = {
       'registerProcessor("ovarp-mic-processor", OvarpMicProcessor);'
     ].join('\n'),
 
+    // Resolves once 'ovarp-mic-processor' is registered on OvarpMic.context.
+    // Kept across recordings because a name can only be registered once.
+    modulePromise: null,
+
     reset: function () {
       OvarpMic.chunks = [];
       OvarpMic.total = 0;
@@ -85,12 +89,25 @@ var OvarpMicLib = {
       OvarpMic.context.resume();
     }
 
-    var blob = new Blob([OvarpMic.workletSource], { type: 'application/javascript' });
-    var url = URL.createObjectURL(blob);
-
     OvarpMic.recording = true;
-    OvarpMic.context.audioWorklet.addModule(url).then(function () {
-      URL.revokeObjectURL(url);
+
+    // A processor name may only be registered once per AudioContext. This used to
+    // call addModule on every Start against a context that is created once, so the
+    // second recording of a session always failed and the participant could only
+    // speak one time. The module is now registered once and reused.
+    if (!OvarpMic.modulePromise) {
+      var blob = new Blob([OvarpMic.workletSource], { type: 'application/javascript' });
+      var url = URL.createObjectURL(blob);
+      OvarpMic.modulePromise = OvarpMic.context.audioWorklet.addModule(url).then(function () {
+        URL.revokeObjectURL(url);
+      }).catch(function (err) {
+        URL.revokeObjectURL(url);
+        OvarpMic.modulePromise = null;   // let the next attempt retry
+        throw err;
+      });
+    }
+
+    OvarpMic.modulePromise.then(function () {
       if (!OvarpMic.recording) return;
 
       OvarpMic.source = OvarpMic.context.createMediaStreamSource(OvarpMic.stream);
@@ -102,7 +119,6 @@ var OvarpMicLib = {
       };
       OvarpMic.source.connect(OvarpMic.worklet);
     }).catch(function (err) {
-      URL.revokeObjectURL(url);
       OvarpMic.recording = false;
       console.error('[OvarpMic] AudioWorklet failed to start: ' + err);
     });

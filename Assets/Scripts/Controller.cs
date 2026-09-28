@@ -83,6 +83,7 @@ public class Controller : MonoBehaviour
             serverConnector.OnAvatarCommand    += OnAgentAvatarChange;
             serverConnector.OnEmotionCommand   += OnAgentEmotion;
             serverConnector.OnLooksCommand     += OnAgentLooks;
+            serverConnector.OnPipelineError    += OnServerPipelineError;
         }
 
         if (chat != null)
@@ -102,6 +103,7 @@ public class Controller : MonoBehaviour
             serverConnector.OnAvatarCommand    -= OnAgentAvatarChange;
             serverConnector.OnEmotionCommand   -= OnAgentEmotion;
             serverConnector.OnLooksCommand     -= OnAgentLooks;
+            serverConnector.OnPipelineError    -= OnServerPipelineError;
         }
 
         if (chat != null)
@@ -245,8 +247,28 @@ public class Controller : MonoBehaviour
 
     private void OnAgentAvatarChange(string avatarName)
     {
-        // TODO: implement avatar prefab swap
-        Debug.Log($"[Controller] Avatar change requested: '{avatarName}' — not yet implemented.");
+        // The prefab swap still needs the alternate rigs wired in the scene. Until
+        // then the request is at least acknowledged on screen: a researcher asking
+        // for an appearance change had no way to tell whether it had been received.
+        Debug.Log($"[Controller] Avatar change requested: '{avatarName}'.");
+        chat?.sendAgentMessage($"[appearance: {avatarName}]");
+    }
+
+    private void OnServerPipelineError(OvarpServerConnector.PipelineError error)
+    {
+        // A failed stage used to surface only as silence, with the chat left on
+        // its typing placeholder for the rest of the session.
+        Debug.LogWarning($"[Controller] Pipeline error in {error.Stage}: {error.Message}");
+
+        chat?.killTempAgent();
+        responses.Clear();
+        ResetTtsPlayback();   // clears the utterance/intent queues and returns to Idle
+
+        string where = string.IsNullOrEmpty(error.Provider)
+            ? error.Stage
+            : $"{error.Stage} ({error.Provider})";
+        chat?.sendAgentMessage($"Sorry — something went wrong on my side ({where}). Please try again.");
+        chat?.SetInputEnabled(true);
     }
 
     // ── Update / state machine ────────────────────────────────────────────────

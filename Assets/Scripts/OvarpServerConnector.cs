@@ -31,6 +31,33 @@ public class OvarpServerConnector : MonoBehaviour
     public event Action<string>    OnAvatarCommand;     // default, male_casual, female_formal, robot
     public event Action<string>    OnEmotionCommand;    // neutral, happy, sad, angry, surprised
     public event Action<string>    OnLooksCommand;      // user, away, agent_beta
+    public event Action<string>    OnReplyChunk;        // incremental text while the reply streams in
+    public event Action<PipelineError> OnPipelineError; // a stage failed server-side
+    public event Action<TurnLatency>   OnLatency;       // stt/llm/tts/total for the finished turn
+
+    /// <summary>A stage of the server pipeline that failed, so the UI can stop waiting.</summary>
+    public readonly struct PipelineError
+    {
+        public readonly string Stage;     // stt, llm or tts
+        public readonly string Provider;
+        public readonly string Message;
+
+        public PipelineError(string stage, string provider, string message)
+        {
+            Stage = stage; Provider = provider; Message = message;
+        }
+    }
+
+    /// <summary>Per-turn timings, published once the audio for the turn is done.</summary>
+    public readonly struct TurnLatency
+    {
+        public readonly int SttMs, LlmMs, TtsMs, TotalMs;
+
+        public TurnLatency(int stt, int llm, int tts, int total)
+        {
+            SttMs = stt; LlmMs = llm; TtsMs = tts; TotalMs = total;
+        }
+    }
 
     /// <summary>True while the socket is open and messages can actually be sent.</summary>
     public bool IsConnected => _ws != null && _ws.State == WebSocketState.Open;
@@ -350,6 +377,30 @@ public class OvarpServerConnector : MonoBehaviour
             {
                 DispatchExecuteState(json);
             }
+            else if (topic == "message" && command == "llm_reply_chunk")
+            {
+                string chunk = ExtractField(json, "text");
+                if (!string.IsNullOrEmpty(chunk))
+                    OnReplyChunk?.Invoke(chunk);
+            }
+            else if (topic == "system" && command == "pipeline_error")
+            {
+                // Without this the chat sits on "…" forever when a provider fails
+                OnPipelineError?.Invoke(new PipelineError(
+                    ExtractField(json, "stage")    ?? "pipeline",
+                    ExtractField(json, "provider") ?? "",
+                    ExtractField(json, "message")  ?? "The server could not complete this turn."));
+            }
+            else if (topic == "system" && command == "latency")
+            {
+                OnLatency?.Invoke(new TurnLatency(
+                    ExtractInt(json, "stt_ms"), ExtractInt(json, "llm_ms"),
+                    ExtractInt(json, "tts_ms"), ExtractInt(json, "total_ms")));
+            }
+            else if (topic == "system" && command == "marker_logged")
+            {
+                // Confirmation only; nothing for the participant to see.
+            }
             else
             {
                 Debug.Log($"[OvarpServerConnector] Unhandled message — topic='{topic}' command='{command}'");
@@ -393,12 +444,19 @@ public class OvarpServerConnector : MonoBehaviour
         string emotion   = ExtractField(json, "emotions");
         string looks     = ExtractField(json, "looks");
 
-        if (!string.IsNullOrEmpty(movement))       OnMovementCommand?.Invoke(movement);
-        else if (!string.IsNullOrEmpty(animation)) OnAnimationCommand?.Invoke(animation);
-        else if (!string.IsNullOrEmpty(avatar))    OnAvatarCommand?.Invoke(avatar);
-        else if (!string.IsNullOrEmpty(emotion))   OnEmotionCommand?.Invoke(emotion);
-        else if (!string.IsNullOrEmpty(looks))     OnLooksCommand?.Invoke(looks);
-        else Debug.LogWarning("[OvarpServerConnector] execute_state received but no recognized subcommand key.");
+        // These were an else-if chain. The server marks every category required in
+        // the LLM tool schema, so a generated execute_state always carries all five
+        // keys at once — which meant only `movement` ever fired and the agent never
+        // changed expression. Each category is independent and all of them apply.
+        bool handled = false;
+        if (!string.IsNullOrEmpty(movement))  { OnMovementCommand?.Invoke(movement);   handled = true; }
+        if (!string.IsNullOrEmpty(animation)) { OnAnimationCommand?.Invoke(animation); handled = true; }
+        if (!string.IsNullOrEmpty(avatar))    { OnAvatarCommand?.Invoke(avatar);       handled = true; }
+        if (!string.IsNullOrEmpty(emotion))   { OnEmotionCommand?.Invoke(emotion);     handled = true; }
+        if (!string.IsNullOrEmpty(looks))     { OnLooksCommand?.Invoke(looks);         handled = true; }
+
+        if (!handled)
+            Debug.LogWarning("[OvarpServerConnector] execute_state received but no recognized subcommand key.");
     }
 
     private static (float[] samples, int channels, int sampleRate) DecodeWavPcm(byte[] wav)
@@ -417,18 +475,81 @@ public class OvarpServerConnector : MonoBehaviour
         return (samples, channels, sampleRate);
     }
 
-    // Minimal JSON string-field extractor — handles both "key":"val" and "key": "val"
+    /// <summary>
+    /// Reads one string field out of the envelope.
+    ///
+    /// This used to stop at the next quote character and return the raw slice,
+    /// which had two consequences the participant could see: a reply containing
+    /// its own quotation mark was cut short there, and escape sequences arrived
+    /// as literal text, so the agent appeared to say "\n\n" out loud in the chat.
+    /// The scan now honours backslash escapes and decodes them.
+    /// </summary>
     private static string ExtractField(string json, string key)
     {
-        string search = $"\"{key}\":";
-        int start = json.IndexOf(search, StringComparison.Ordinal);
-        if (start < 0) return null;
-        start += search.Length;
-        while (start < json.Length && json[start] == ' ') start++;
-        if (start >= json.Length || json[start] != '"') return null;
+        int start = FindValueStart(json, key);
+        if (start < 0 || json[start] != '"') return null;
         start++;
-        int end = json.IndexOf('"', start);
-        if (end < 0) return null;
-        return json.Substring(start, end - start);
+
+        var sb = new StringBuilder();
+        for (int i = start; i < json.Length; i++)
+        {
+            char c = json[i];
+
+            if (c == '"') return sb.ToString();   // unescaped quote ends the value
+
+            if (c != '\\') { sb.Append(c); continue; }
+
+            if (++i >= json.Length) break;
+            switch (json[i])
+            {
+                case 'n':  sb.Append('\n'); break;
+                case 'r':  sb.Append('\r'); break;
+                case 't':  sb.Append('\t'); break;
+                case 'b':  sb.Append('\b'); break;
+                case 'f':  sb.Append('\f'); break;
+                case '"':  sb.Append('"');  break;
+                case '/':  sb.Append('/');  break;
+                case '\\': sb.Append('\\'); break;
+                case 'u':
+                    if (i + 4 < json.Length &&
+                        int.TryParse(json.Substring(i + 1, 4),
+                                     System.Globalization.NumberStyles.HexNumber,
+                                     System.Globalization.CultureInfo.InvariantCulture,
+                                     out int code))
+                    {
+                        sb.Append((char)code);
+                        i += 4;
+                    }
+                    break;
+                default:
+                    sb.Append(json[i]);   // unknown escape: keep the character
+                    break;
+            }
+        }
+
+        Debug.LogWarning($"[OvarpServerConnector] Unterminated string for '{key}'.");
+        return sb.ToString();
+    }
+
+    /// <summary>Reads one integer field, or 0 when it is absent.</summary>
+    private static int ExtractInt(string json, string key)
+    {
+        int start = FindValueStart(json, key);
+        if (start < 0) return 0;
+
+        int end = start;
+        while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-')) end++;
+        return int.TryParse(json.Substring(start, end - start), out int value) ? value : 0;
+    }
+
+    /// <summary>Index of the first character of the value for <paramref name="key"/>.</summary>
+    private static int FindValueStart(string json, string key)
+    {
+        string search = $"\"{key}\":";
+        int at = json.IndexOf(search, StringComparison.Ordinal);
+        if (at < 0) return -1;
+        at += search.Length;
+        while (at < json.Length && json[at] == ' ') at++;
+        return at < json.Length ? at : -1;
     }
 }
