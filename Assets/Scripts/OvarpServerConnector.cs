@@ -28,7 +28,6 @@ public class OvarpServerConnector : MonoBehaviour
     public event Action<AudioClip> OnTtsComplete;
     public event Action<string>    OnMovementCommand;   // move_closer, move_farther, move_left, move_right, reset_position
     public event Action<string>    OnAnimationCommand;  // clap, bow, thumbs_up, thinking, shrug, dance, etc.
-    public event Action<string>    OnAvatarCommand;     // default, male_casual, female_formal, robot
     public event Action<string>    OnEmotionCommand;    // neutral, happy, sad, angry, surprised
     public event Action<string>    OnLooksCommand;      // user, away, agent_beta
     public event Action<string>    OnReplyChunk;        // incremental text while the reply streams in
@@ -440,18 +439,16 @@ public class OvarpServerConnector : MonoBehaviour
     {
         string movement  = ExtractField(json, "movement");
         string animation = ExtractField(json, "actions");
-        string avatar    = ExtractField(json, "avatar");
         string emotion   = ExtractField(json, "emotions");
         string looks     = ExtractField(json, "looks");
 
         // These were an else-if chain. The server marks every category required in
-        // the LLM tool schema, so a generated execute_state always carries all five
-        // keys at once — which meant only `movement` ever fired and the agent never
-        // changed expression. Each category is independent and all of them apply.
+        // the LLM tool schema, so a generated execute_state carries all of them at
+        // once — which meant only `movement` ever fired and the agent never changed
+        // expression. Each category is independent and all of them apply.
         bool handled = false;
         if (!string.IsNullOrEmpty(movement))  { OnMovementCommand?.Invoke(movement);   handled = true; }
         if (!string.IsNullOrEmpty(animation)) { OnAnimationCommand?.Invoke(animation); handled = true; }
-        if (!string.IsNullOrEmpty(avatar))    { OnAvatarCommand?.Invoke(avatar);       handled = true; }
         if (!string.IsNullOrEmpty(emotion))   { OnEmotionCommand?.Invoke(emotion);     handled = true; }
         if (!string.IsNullOrEmpty(looks))     { OnLooksCommand?.Invoke(looks);         handled = true; }
 

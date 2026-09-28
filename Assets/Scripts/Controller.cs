@@ -80,7 +80,6 @@ public class Controller : MonoBehaviour
             serverConnector.OnTtsComplete     += OnAgentTtsReady;
             serverConnector.OnMovementCommand  += OnAgentMovement;
             serverConnector.OnAnimationCommand += OnAgentAnimation;
-            serverConnector.OnAvatarCommand    += OnAgentAvatarChange;
             serverConnector.OnEmotionCommand   += OnAgentEmotion;
             serverConnector.OnLooksCommand     += OnAgentLooks;
             serverConnector.OnPipelineError    += OnServerPipelineError;
@@ -100,7 +99,6 @@ public class Controller : MonoBehaviour
             serverConnector.OnTtsComplete      -= OnAgentTtsReady;
             serverConnector.OnMovementCommand  -= OnAgentMovement;
             serverConnector.OnAnimationCommand -= OnAgentAnimation;
-            serverConnector.OnAvatarCommand    -= OnAgentAvatarChange;
             serverConnector.OnEmotionCommand   -= OnAgentEmotion;
             serverConnector.OnLooksCommand     -= OnAgentLooks;
             serverConnector.OnPipelineError    -= OnServerPipelineError;
@@ -243,15 +241,6 @@ public class Controller : MonoBehaviour
     private void OnAgentLooks(string lookTarget)
     {
         headLookAt?.SetLookTarget(lookTarget);
-    }
-
-    private void OnAgentAvatarChange(string avatarName)
-    {
-        // The prefab swap still needs the alternate rigs wired in the scene. Until
-        // then the request is at least acknowledged on screen: a researcher asking
-        // for an appearance change had no way to tell whether it had been received.
-        Debug.Log($"[Controller] Avatar change requested: '{avatarName}'.");
-        chat?.sendAgentMessage($"[appearance: {avatarName}]");
     }
 
     private void OnServerPipelineError(OvarpServerConnector.PipelineError error)
