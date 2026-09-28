@@ -82,3 +82,8 @@ crashlytics-build.properties
 # Unity debug exports (often contain absolute local paths; do not ship)
 *_BackUpThisFolder_ButDontShipItWithYourGame/
 *_BurstDebugInformation_DoNotShip/
+
+# Unity Performance Test Framework writes these into Assets/Resources every time
+# the Editor opens, with empty run data. Regenerated, never authored.
+/[Aa]ssets/[Rr]esources/PerformanceTestRunInfo.json*
+/[Aa]ssets/[Rr]esources/PerformanceTestRunSettings.json*
