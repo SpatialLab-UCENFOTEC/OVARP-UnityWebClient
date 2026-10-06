@@ -20,6 +20,15 @@ public class Chat : MonoBehaviour
 
     /// <summary>Width reserved for the Send button plus its margin.</summary>
     private const int SEND_BUTTON_ROOM_PX = 60;
+
+    /// <summary>How long the history takes to ease to a new message.</summary>
+    private const float SCROLL_SECONDS = 0.28f;
+
+    // Space starts and stops the recording; it is not held down. The hint used
+    // to say "Hold Space", so testers pressed and held and had to work out how
+    // to stop by trial and error.
+    private const string IDLE_HINT = "Press Space, or tap the circle, to start talking";
+    private const string LISTENING_HINT = "Listening... press Space again to send";
     private bool chatVisible = true;
 
     /// <summary>Raised when the user submits typed text. Controller sends it to the server.</summary>
@@ -183,6 +192,34 @@ public class Chat : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Eases the view down to a new message instead of snapping to it.
+    ///
+    /// ScrollTo jumped the history between messages, which made a conversation
+    /// hard to follow; and the elastic mode let the list drift past the first
+    /// message, so "Start of the conversation" scrolled away from the start.
+    /// </summary>
+    private IEnumerator SmoothScrollTo(ScrollView sv, VisualElement target)
+    {
+        yield return null;                       // let layout settle
+        sv.touchScrollBehavior = ScrollView.TouchScrollBehavior.Clamped;
+
+        float from = sv.scrollOffset.y;
+        sv.ScrollTo(target);
+        float to = sv.scrollOffset.y;
+        if (Mathf.Approximately(from, to)) yield break;
+
+        float t = 0f;
+        while (t < SCROLL_SECONDS)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / SCROLL_SECONDS));
+            sv.scrollOffset = new Vector2(sv.scrollOffset.x, Mathf.Lerp(from, to, k));
+            yield return null;
+        }
+        sv.scrollOffset = new Vector2(sv.scrollOffset.x, to);
+    }
+
     private IEnumerator scrollLater(ScrollView sv, VisualElement ve)
     {
         yield return new WaitForSeconds(0.1f);
@@ -191,7 +228,7 @@ public class Chat : MonoBehaviour
 
     public virtual void DelayedScroll(ScrollView sv, VisualElement ve)
     {
-        StartCoroutine(scrollLater(sv, ve));
+        StartCoroutine(SmoothScrollTo(sv, ve));
     }
 
     void OnClick(ClickEvent evt)
@@ -240,7 +277,7 @@ public class Chat : MonoBehaviour
 
         if (talkHint == null && chatArea != null)
         {
-            talkHint = new Label("Hold Space, or the circle above the avatar, to talk");
+            talkHint = new Label(IDLE_HINT);
             talkHint.style.fontSize = 11;
             talkHint.style.paddingLeft = 6;
             talkHint.style.paddingBottom = 4;
@@ -278,6 +315,19 @@ public class Chat : MonoBehaviour
         if (placeholder == null || messageInput == null) return;
         bool empty = string.IsNullOrEmpty(messageInput.value);
         placeholder.style.display = empty ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    /// <summary>Say that the microphone is open, and how to close it.
+
+    /// The blinking sphere above the avatar was the only signal, and nothing
+    /// explained what the colour meant.</summary>
+    public void SetListening(bool listening)
+    {
+        if (talkHint == null) return;
+        talkHint.text = listening ? LISTENING_HINT : IDLE_HINT;
+        talkHint.style.color = listening
+            ? new StyleColor(new Color(0.72f, 0.21f, 0.21f))
+            : new StyleColor(new Color(0.45f, 0.45f, 0.45f));
     }
 
     /// <summary>Show whether the server is reachable, rather than leaving the

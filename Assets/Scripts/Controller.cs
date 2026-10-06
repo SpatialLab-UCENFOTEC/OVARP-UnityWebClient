@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -41,7 +42,10 @@ public class Controller : MonoBehaviour
     public OvarpServerConnector serverConnector;
 
     private Vector3 _agentInitialPosition;
-    private const float MoveStep = 0.1f;
+    // One command is one pace, covered over MoveSeconds rather than instantly.
+    private const float MoveStep = 0.35f;
+    private const float MoveSeconds = 0.9f;
+    private Coroutine _moveRoutine;
 
     private IMicrophoneCapture _microphone;
     private readonly Queue<AudioClip> _ttsClipQueue = new Queue<AudioClip>();
@@ -203,6 +207,7 @@ public class Controller : MonoBehaviour
     {
         if (direction == "reset_position")
         {
+            if (_moveRoutine != null) { StopCoroutine(_moveRoutine); _moveRoutine = null; }
             agent.transform.position = _agentInitialPosition;
             return;
         }
@@ -225,7 +230,31 @@ public class Controller : MonoBehaviour
             _              => Vector3.zero
         };
 
-        agent.transform.position += delta * MoveStep;
+        // This was an instant jump of MoveStep, which at 0.1 units is invisible:
+        // asking the agent to walk closer looked like nothing happened at all.
+        // It now covers the distance over time, so the movement reads as movement.
+        if (delta == Vector3.zero) return;
+
+        if (_moveRoutine != null) StopCoroutine(_moveRoutine);
+        _moveRoutine = StartCoroutine(GlideTo(agent.transform.position + delta * MoveStep));
+    }
+
+    /// <summary>Walks the agent to a position instead of snapping it there.</summary>
+    private IEnumerator GlideTo(Vector3 destination)
+    {
+        Vector3 from = agent.transform.position;
+        float elapsed = 0f;
+
+        while (elapsed < MoveSeconds)
+        {
+            elapsed += Time.deltaTime;
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / MoveSeconds));
+            agent.transform.position = Vector3.Lerp(from, destination, k);
+            yield return null;
+        }
+
+        agent.transform.position = destination;
+        _moveRoutine = null;
     }
 
     private void OnAgentAnimation(string animName)
@@ -371,11 +400,13 @@ public class Controller : MonoBehaviour
             recIndicator.StartBlinking();
             _microphone.StartRecording();
             chat.SendTempUser();
+            chat?.SetListening(true);
             isListening = true;
         }
         else
         {
             recIndicator.StopBlinking();
+            chat?.SetListening(false);
             bool sent = StopRecording();
             if (sent) anim.StartThinking();
             isListening = false;

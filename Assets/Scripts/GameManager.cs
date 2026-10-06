@@ -15,7 +15,9 @@ public class GameManager : MonoBehaviour
     [SerializeField]
     private Color userBubbleColor = new Vector4(0f,0.5176471f,1f,1f);
     [SerializeField]
-    private Color agentBubbleColor = new Vector4(0f, 0.3882353f, 0.7490196f, 1f);
+    // Neutral, not a second blue: the two bubbles were told apart only by which
+    // side they sat on, which is no distinction at a glance.
+    private Color agentBubbleColor = new Vector4(0.914f, 0.925f, 0.945f, 1f);
     public static event Action<string> OnAgentNameChange;
     public static event Action<string> OnUserNameChange;
     public static event Action<Color> OnUserColorChange;
